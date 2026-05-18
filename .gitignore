@@ -1,0 +1,44 @@
+# Environnement Python — NE JAMAIS versionner
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Secrets — NE JAMAIS versionner
+.env
+*.key
+*.pem
+secrets/
+
+# Base de données locale
+*.db
+*.sqlite
+*.sqlite3
+
+# Fichiers IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Datasets IA (trop lourds pour Git)
+ai/datasets/
+*.h5
+*.tflite
+*.pb
+
+# Logs
+*.log
+logs/
+
+# Fichiers de test temporaires
+tmp/
+temp/
