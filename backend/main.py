@@ -5,6 +5,7 @@ Lancement : uvicorn backend.main:app --reload
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from backend.api.readings import router as readings_router
 
 # On importe les routes (on les ajoute au fur et à mesure)
 # from backend.api import sensors, alerts
@@ -24,6 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#Enregistrement des routeurs
+app.include_router(readings_router, prefix="/api")
 
 @app.get("/")
 def root():
