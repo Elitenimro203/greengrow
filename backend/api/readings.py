@@ -29,3 +29,9 @@ def create_reading(reading: SensorReading, db: Session = Depends(get_db)):
 
     print(f"[Greengrow] Stocké - Bac: {reading.bac_id} | Humidité: {reading.moisture_percent}%")
     return {"status": "stored", "bac_id": reading.bac_id}
+
+@router.get("/readings/{bac_id}")
+def get_readings(bac_id: str, limit: int = 50, db: Session = Depends(get_db)):
+    """Récupère les dernières lectures d'un bac."""
+    readings = db.query(Reading).filter(Reading.bac_id == bac_id).order_by(Reading.timestamp.desc()).limit(limit).all()
+    return readings
