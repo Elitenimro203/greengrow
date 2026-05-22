@@ -6,6 +6,7 @@ Lancement : uvicorn backend.main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.readings import router as readings_router
+from backend.models.database import init_db
 
 # On importe les routes (on les ajoute au fur et à mesure)
 # from backend.api import sensors, alerts
@@ -15,6 +16,11 @@ app = FastAPI(
     description="API de gestion des bacs de culture intelligents",
     version="0.1.0",
 )
+
+@app.on_event("startup")
+def startup():
+    init_db()
+    print("[Greengrow] Base de données initialisée ✓")
 
 # Middleware CORS — permet au dashboard HTML de parler à l'API
 # En prod, remplace ["*"] par l'URL exacte de ton frontend
