@@ -1,7 +1,15 @@
+import os
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend.models.reading import SensorReading
 from backend.models.database import get_db, Reading, Bac
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Seuils d'alerte (à ajuster selon tes plantes)
+MOISTURE_THRESHOLD_LOW = float(os.getenv("MOISTURE_THRESHOLD_LOW", 45))
+TEMP_MAX_CELSIUS = float(os.getenv("TEMP_MAX_CELSIUS", 35))
 
 router = APIRouter()
 
@@ -27,8 +35,19 @@ def create_reading(reading: SensorReading, db: Session = Depends(get_db)):
     db.add(db_reading)
     db.commit()
 
-    print(f"[Greengrow] Stocké - Bac: {reading.bac_id} | Humidité: {reading.moisture_percent}%")
-    return {"status": "stored", "bac_id": reading.bac_id}
+    # Vérification seuils
+    alerts = []
+
+    # À toi : 
+    # - Si moisture_percent < seuil bas → ajouter une alerte
+    if reading.moisture_percent < MOISTURE_THRESHOLD_LOW:
+        alerts.append("Humidité trop basse - arroser le bac !")
+    # - Si temperature_celsius > seuil max → ajouter une alerte
+    if reading.temperature_celsius > TEMP_MAX_CELSIUS:
+        alerts.append("Température trop élevée - Ventiler le bac !")
+
+    print(f"[Greengrow] Stocké - Bac: {reading.bac_id} | Humidité: {reading.moisture_percent}% | Alerts: {alerts}")
+    return {"status": "stored", "bac_id": reading.bac_id, "alerts": alerts}
 
 @router.get("/readings/{bac_id}")
 def get_readings(bac_id: str, limit: int = 50, db: Session = Depends(get_db)):

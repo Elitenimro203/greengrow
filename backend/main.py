@@ -46,6 +46,8 @@ def health():
     return {"status": "healthy"}
 
 
+
+
 # Pourquoi séparer root() et health() ?
 # root() est la vitrine publique.
 # health() est le check silencieux des outils de monitoring (uptime robots, k8s, etc.)
