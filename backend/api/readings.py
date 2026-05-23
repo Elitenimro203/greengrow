@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend.models.reading import SensorReading
-from backend.models.database import get_db, Reading, Bac
+from backend.models.database import get_db, Reading, Bac, Alert
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,11 +41,26 @@ def create_reading(reading: SensorReading, db: Session = Depends(get_db)):
     # À toi : 
     # - Si moisture_percent < seuil bas → ajouter une alerte
     if reading.moisture_percent < MOISTURE_THRESHOLD_LOW:
-        alerts.append("Humidité trop basse - arroser le bac !")
+        db_alert = Alert(
+            bac_id=reading.bac_id,
+            type="moisture_low",
+            message= f"Alerte - Humidité du sol trop basse ({reading.moisture_percent}%) - Arrosez le bac !",
+            timestamp=reading.timestamp
+        )
+        db.add(db_alert)
+        db.commit()
+        alerts.append(db_alert.message)
     # - Si temperature_celsius > seuil max → ajouter une alerte
     if reading.temperature_celsius > TEMP_MAX_CELSIUS:
-        alerts.append("Température trop élevée - Ventiler le bac !")
-
+        db_alert = Alert(
+            bac_id=reading.bac_id,
+            type="temperature_high",
+            message=f"Alerte - Température élevée ({reading.temperature_celsius}°C) - Assurez une bonne ventilation !",
+            timestamp=reading.timestamp
+        )
+        db.add(db_alert)
+        db.commit()
+        alerts.append(db_alert.message)
     print(f"[Greengrow] Stocké - Bac: {reading.bac_id} | Humidité: {reading.moisture_percent}% | Alerts: {alerts}")
     return {"status": "stored", "bac_id": reading.bac_id, "alerts": alerts}
 

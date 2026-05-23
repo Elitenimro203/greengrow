@@ -37,6 +37,18 @@ class Reading(Base):
     source = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class Alert(Base):
+    __tablename__ = "alerts"
+    __table_args__ = {'extend_existing': True}
+
+    alert_id = Column(Integer, primary_key=True, index=True)
+    bac_id = Column(String, index=True)
+    type = Column(String)
+    message = Column(String)
+    timestamp = Column(Float)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 def get_db():
     """
     Générateur de session DB.
