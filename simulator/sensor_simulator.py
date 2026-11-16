@@ -1,105 +1,144 @@
 """
-GreenGrow — Simulateur de capteurs
-===================================
-Ce script simule ce que ferait l'ESP32 dans un vrai bac :
-il génère de fausses données de capteurs et les envoie à l'API.
+GreenGrow — Simulateur de bac
+==============================
+Ce script se comporte comme le ferait l'ESP32 d'un vrai bac : il se connecte
+au broker MQTT en TLS avec SON compte, annonce qu'il est en ligne, puis
+publie des mesures. Il est soumis aux mêmes règles qu'un vrai bac.
 
-Utilité : développer et tester TOUT le backend sans avoir de hardware.
-C'est la règle d'or du dev IoT : le software doit être testable sans le hardware.
+Utilité : développer et tester tout le système sans matériel.
 
 Lancement : python simulator/sensor_simulator.py
+(le broker et l'API doivent tourner, voir README)
 """
 
-import os
-import time
-import random
 import json
-import httpx  # Client HTTP — on "parle" à notre propre API
+import os
+import random
+import ssl
+import sys
+import time
+from pathlib import Path
+
+import httpx
+import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---- Configuration ----
-API_URL = os.getenv("GREENGROW_API_URL", "http://localhost:8000")  # URL de notre API
-BAC_ID = "bac-sim-01"              # Identifiant unique du bac simulé
-INTERVAL_SECONDS = 5               # Envoi toutes les 5 secondes
+API_URL = os.getenv("GREENGROW_API_URL", "http://localhost:8000")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+CA_FILE = os.getenv("MQTT_CA_FILE", "certs/ca.crt")
+SITE = "abidjan"
+BAC_ID = "bac-sim-01"
+INTERVAL_SECONDS = 5
+
+# Les identifiants MQTT du bac simulé sont rangés ici après l'enregistrement.
+# Ce fichier est ignoré par Git : un mot de passe ne va jamais dans le dépôt.
+CREDENTIALS_FILE = Path(__file__).parent / ".credentials.json"
 
 
-def generate_sensor_reading() -> dict:
+def get_credentials() -> dict:
     """
-    Génère une lecture de capteurs réaliste pour une tomate en bonne santé.
+    Retourne les identifiants MQTT du bac simulé.
 
-    Pourquoi une fonction séparée ?
-    Parce que dans 2 semaines, tu voudras peut-être simuler une plante malade,
-    ou une panne de pompe. Tu modifieras juste cette fonction — pas le reste du code.
-    C'est le principe de Single Responsibility (chaque fonction fait UNE chose).
+    Au premier lancement, le simulateur demande à l'API d'enregistrer le bac :
+    l'API crée son compte sur le broker et renvoie le mot de passe UNE fois.
+    Si le bac existe déjà mais que le fichier a été perdu, on demande un
+    nouveau mot de passe (l'ancien cesse de fonctionner).
     """
-    return {
-        "bac_id": BAC_ID,
-        "timestamp": time.time(),
-        "moisture_percent": round(random.uniform(35.0, 75.0), 1),  # % humidité sol
-        "temperature_celsius": round(random.uniform(24.0, 32.0), 1),  # T° ambiante
-        "humidity_air_percent": round(random.uniform(55.0, 85.0), 1),  # Humidité air
-        "pump_active": False,  # La pompe est-elle en train d'arroser ?
-        "source": "simulator",  # Marque les données comme simulées
-    }
+    if CREDENTIALS_FILE.exists():
+        return json.loads(CREDENTIALS_FILE.read_text())
 
-
-def register_bac() -> None:
-    """
-    Enregistre le bac simulé auprès de l'API s'il n'existe pas encore.
-    L'API refuse désormais les mesures d'un bac inconnu (404) : comme un vrai
-    bac, le simulateur doit d'abord être déclaré.
-    """
+    headers = {"X-Admin-Key": ADMIN_API_KEY}
     try:
         response = httpx.post(
             f"{API_URL}/api/bacs",
-            json={"bac_id": BAC_ID, "nom": "Bac simulé", "site": "abidjan"},
-            timeout=3.0,
+            json={"bac_id": BAC_ID, "nom": "Bac simulé", "site": SITE},
+            headers=headers,
+            timeout=10.0,
         )
         if response.status_code == 201:
-            print(f"🆕 Bac {BAC_ID} enregistré")
+            creds = response.json()["mqtt"]
         elif response.status_code == 409:
-            print(f"✔️  Bac {BAC_ID} déjà enregistré")
+            response = httpx.post(
+                f"{API_URL}/api/bacs/{BAC_ID}/mqtt-credentials", headers=headers, timeout=10.0
+            )
+            response.raise_for_status()
+            creds = response.json()
         else:
-            print(f"❌ Enregistrement du bac refusé : {response.status_code} {response.text}")
+            response.raise_for_status()
     except httpx.ConnectError:
-        print("⚠️  API non joignable — le bac sera enregistré au prochain lancement")
+        sys.exit("❌ API non joignable. Lance d'abord : uvicorn backend.main:app --reload")
+    except httpx.HTTPStatusError as exc:
+        sys.exit(f"❌ Enregistrement refusé : {exc.response.status_code} {exc.response.text}")
+
+    if creds is None:
+        sys.exit("❌ L'API n'a pas créé de compte MQTT : vérifie MQTT_ENABLED=true dans .env")
+
+    CREDENTIALS_FILE.write_text(json.dumps(creds, indent=2))
+    print(f"🆕 Bac {BAC_ID} enregistré, identifiants rangés dans {CREDENTIALS_FILE.name}")
+    return creds
 
 
-def send_reading(reading: dict) -> None:
+def generate_measurement() -> dict:
     """
-    Envoie une lecture à l'API et affiche le résultat.
-    En cas d'erreur (API pas encore lancée, etc.), on l'affiche sans planter.
+    Une mesure réaliste pour une tomate. Remarque : il n'y a PAS de bac_id
+    dans le message. Le serveur sait qui parle grâce au topic.
     """
-    try:
-        response = httpx.post(
-            f"{API_URL}/api/readings",
-            json=reading,
-            timeout=3.0,  # On attend max 3 secondes — l'IoT ne peut pas bloquer indéfiniment
-        )
-        print(f"[{time.strftime('%H:%M:%S')}] ✅ Envoyé → {response.status_code} | {reading}")
-    except httpx.ConnectError:
-        # L'API n'est pas encore lancée — normal en début de dev
-        print(f"[{time.strftime('%H:%M:%S')}] ⚠️  API non joignable — données générées quand même : {reading}")
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] ❌ Erreur inattendue : {e}")
+    return {
+        "timestamp": time.time(),
+        "moisture_percent": round(random.uniform(35.0, 75.0), 1),
+        "temperature_celsius": round(random.uniform(24.0, 32.0), 1),
+        "humidity_air_percent": round(random.uniform(55.0, 85.0), 1),
+        "pump_active": False,
+        "source": "simulator",
+    }
 
 
-def main():
+def main() -> None:
+    creds = get_credentials()
+    prefix = creds["topic_prefix"]  # greengrow/abidjan/bac-sim-01
+
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=creds["username"])
+    client.username_pw_set(creds["username"], creds["password"])
+    # Le simulateur vérifie le certificat du broker avec la CA, comme le fera
+    # l'ESP32. S'il n'est pas signé par notre CA, la connexion est refusée.
+    client.tls_set(ca_certs=CA_FILE, cert_reqs=ssl.CERT_REQUIRED)
+
+    # Last Will : "si je disparais sans prévenir, publie offline à ma place".
+    client.will_set(f"{prefix}/status", "offline", qos=1, retain=True)
+
+    def on_connect(c, userdata, flags, reason_code, properties):
+        if reason_code.is_failure:
+            print(f"❌ Connexion refusée par le broker : {reason_code}")
+            return
+        print("🔐 Connecté au broker en TLS")
+        c.publish(f"{prefix}/status", "online", qos=1, retain=True)
+
+    client.on_connect = on_connect
+
     print(f"🌱 GreenGrow Simulator — Bac : {BAC_ID}")
-    print(f"📡 Envoi vers : {API_URL}")
-    print(f"⏱  Intervalle : {INTERVAL_SECONDS}s")
-    print("─" * 50)
+    print(f"📡 Broker : {creds['host']}:{creds['port']}  |  topic : {prefix}/telemetry")
     print("Ctrl+C pour arrêter\n")
 
-    register_bac()
-
-    while True:
-        reading = generate_sensor_reading()
-        send_reading(reading)
-        time.sleep(INTERVAL_SECONDS)
+    client.connect(creds["host"], creds["port"], keepalive=60)
+    client.loop_start()
+    try:
+        while True:
+            time.sleep(INTERVAL_SECONDS)
+            measurement = generate_measurement()
+            info = client.publish(f"{prefix}/telemetry", json.dumps(measurement), qos=1)
+            state = "✅ publié" if info.rc == mqtt.MQTT_ERR_SUCCESS else "⚠️  en attente (déconnecté)"
+            print(f"[{time.strftime('%H:%M:%S')}] {state} | {measurement}")
+    except KeyboardInterrupt:
+        # Arrêt propre : on annonce nous-mêmes qu'on part.
+        client.publish(f"{prefix}/status", "offline", qos=1, retain=True).wait_for_publish(2)
+        print("\n👋 Simulateur arrêté")
+    finally:
+        client.loop_stop()
+        client.disconnect()
 
 
 if __name__ == "__main__":
-    # Pourquoi ce if __name__ == "__main__" ?
-    # Ça permet d'importer ce fichier dans un test sans lancer la boucle infinie.
-    # C'est une convention Python universelle — prends-la dès maintenant.
     main()

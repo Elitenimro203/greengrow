@@ -27,17 +27,29 @@ UtcDatetime = Annotated[datetime, AfterValidator(_to_utc)]
 SLUG = r"^[a-z0-9][a-z0-9_-]{1,49}$"  # minuscules, chiffres, - et _ (sûr dans un topic MQTT)
 
 
-class SensorReading(BaseModel):
-    """Une mesure envoyée par un bac (réel ou simulé)."""
+class Measurement(BaseModel):
+    """
+    Le contenu d'une mesure, SANS l'identité du bac.
 
-    bac_id: str = Field(pattern=SLUG)
-    # Accepte un nombre de secondes Unix (ce qu'envoie l'ESP32) ou une date ISO.
-    timestamp: UtcDatetime
+    C'est exactement ce qu'un bac publie en MQTT. L'identité ne vient jamais
+    du message : elle vient du topic, que le broker n'autorise qu'au compte
+    de ce bac. Un bac ne peut donc pas se faire passer pour un autre.
+    """
+
+    # Nombre de secondes Unix ou date ISO. Absent = heure de réception par le
+    # serveur (un ESP32 qui vient de démarrer ne connaît pas encore l'heure).
+    timestamp: Optional[UtcDatetime] = None
     moisture_percent: float = Field(ge=0.0, le=100.0)
     temperature_celsius: float = Field(ge=-10.0, le=60.0)
     humidity_air_percent: float = Field(ge=0.0, le=100.0)
     pump_active: bool
     source: Optional[str] = Field(default="hardware", max_length=20)
+
+
+class SensorReading(Measurement):
+    """Une mesure envoyée par HTTP (outil de test) : là, le bac est dans le message."""
+
+    bac_id: str = Field(pattern=SLUG)
 
 
 class BacCreate(BaseModel):
@@ -61,7 +73,23 @@ class BacOut(BaseModel):
     moisture_low: float
     moisture_high: float
     temp_max: float
+    online: bool
+    last_seen_at: Optional[UtcDatetime]
     created_at: UtcDatetime
+
+
+class MqttCredentials(BaseModel):
+    host: str
+    port: int
+    username: str
+    password: str
+    topic_prefix: str
+
+
+class BacCreated(BacOut):
+    """Réponse à la création : le mot de passe MQTT n'est montré QUE cette fois."""
+
+    mqtt: Optional[MqttCredentials] = None
 
 
 class ReadingOut(BaseModel):

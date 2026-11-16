@@ -26,3 +26,31 @@ jobs:
           DATABASE_URL: sqlite:///./ci.db
       - name: Tests
         run: pytest -q
+
+  broker:
+    # La sécurité du broker est testée pour de vrai : on démarre Mosquitto
+    # et des "attaquants" essaient de tricher (voir tests/test_broker_real.py).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Certificats et secrets jetables
+        run: |
+          python scripts/make_dev_certs.py
+          {
+            echo "MQTT_ADMIN_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+            echo "MQTT_BACKEND_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          } > .env
+      - name: Démarrer le broker
+        run: docker compose up -d --wait
+      - name: Tests de sécurité contre le vrai broker
+        run: pytest tests/test_broker_real.py -v
+        env:
+          GREENGROW_BROKER_TEST: "1"
+      - name: Journal du broker en cas d'échec
+        if: failure()
+        run: docker compose logs mosquitto

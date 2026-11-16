@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.api.deps import find_bac, get_bac_or_404
+from backend.api.security import require_admin
 from backend.models.database import get_db
 from backend.models.entities import Bac, Reading
 from backend.models.schemas import ReadingOut, SensorReading
@@ -11,9 +12,12 @@ from backend.services.readings import record_reading
 router = APIRouter(tags=["mesures"])
 
 
-@router.post("/readings")
+@router.post("/readings", dependencies=[Depends(require_admin)])
 def create_reading(reading: SensorReading, db: Session = Depends(get_db)):
-    """Reçoit une mesure. La route ne fait que traduire HTTP <-> service."""
+    """
+    Injecte une mesure à la main (outil de test, clé d'administration exigée).
+    Les bacs, eux, passent par MQTT : c'est là qu'ils sont authentifiés.
+    """
     bac = find_bac(db, reading.bac_id)
     opened = record_reading(db, bac, reading)
     return {

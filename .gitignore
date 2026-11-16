@@ -42,3 +42,7 @@ logs/
 # Fichiers de test temporaires
 tmp/
 temp/
+
+# Certificats et clés TLS locaux, identifiants du simulateur
+certs/
+simulator/.credentials.json
