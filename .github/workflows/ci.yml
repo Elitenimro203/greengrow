@@ -1,0 +1,28 @@
+# À chaque push et chaque pull request, GitHub installe le projet sur une
+# machine neuve et lance les tests. Si un test casse, on le voit avant de fusionner.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Les migrations créent bien la base
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///./ci.db
+      - name: Tests
+        run: pytest -q

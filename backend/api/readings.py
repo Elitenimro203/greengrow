@@ -1,71 +1,39 @@
-import os
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from backend.models.reading import SensorReading
-from backend.models.database import get_db, Reading, Bac, Alert
-from dotenv import load_dotenv
 
-load_dotenv()
+from backend.api.deps import find_bac, get_bac_or_404
+from backend.models.database import get_db
+from backend.models.entities import Bac, Reading
+from backend.models.schemas import ReadingOut, SensorReading
+from backend.services.readings import record_reading
 
-# Seuils d'alerte (à ajuster selon tes plantes)
-MOISTURE_THRESHOLD_LOW = float(os.getenv("MOISTURE_THRESHOLD_LOW", 45))
-TEMP_MAX_CELSIUS = float(os.getenv("TEMP_MAX_CELSIUS", 35))
+router = APIRouter(tags=["mesures"])
 
-router = APIRouter()
 
 @router.post("/readings")
 def create_reading(reading: SensorReading, db: Session = Depends(get_db)):
-    #Crée le bac s'il n'existe pas encore
-    bac = db.query(Bac).filter(Bac.bac_id == reading.bac_id).first()
-    if not bac:
-        bac = Bac(bac_id=reading.bac_id, nom="Prototype", localisation="Abidjan")
-        db.add(bac)
-        db.commit()
+    """Reçoit une mesure. La route ne fait que traduire HTTP <-> service."""
+    bac = find_bac(db, reading.bac_id)
+    opened = record_reading(db, bac, reading)
+    return {
+        "status": "stored",
+        "bac_id": bac.slug,
+        "alerts": [a.message for a in opened],  # seulement les NOUVELLES alertes
+    }
 
-    #Stocke la lecture
-    db_reading = Reading(
-        bac_id=reading.bac_id,
-        timestamp = reading.timestamp,
-        moisture_percent=reading.moisture_percent,
-        temperature_celsius=reading.temperature_celsius,
-        humidity_air_percent=reading.humidity_air_percent,
-        pump_active=reading.pump_active,
-        source=reading.source,
-    )
-    db.add(db_reading)
-    db.commit()
 
-    # Vérification seuils
-    alerts = []
-
-    # À toi : 
-    # - Si moisture_percent < seuil bas → ajouter une alerte
-    if reading.moisture_percent < MOISTURE_THRESHOLD_LOW:
-        db_alert = Alert(
-            bac_id=reading.bac_id,
-            type="moisture_low",
-            message= f"Alerte - Humidité du sol trop basse ({reading.moisture_percent}%) - Arrosez le bac !",
-            timestamp=reading.timestamp
-        )
-        db.add(db_alert)
-        db.commit()
-        alerts.append(db_alert.message)
-    # - Si temperature_celsius > seuil max → ajouter une alerte
-    if reading.temperature_celsius > TEMP_MAX_CELSIUS:
-        db_alert = Alert(
-            bac_id=reading.bac_id,
-            type="temperature_high",
-            message=f"Alerte - Température élevée ({reading.temperature_celsius}°C) - Assurez une bonne ventilation !",
-            timestamp=reading.timestamp
-        )
-        db.add(db_alert)
-        db.commit()
-        alerts.append(db_alert.message)
-    print(f"[Greengrow] Stocké - Bac: {reading.bac_id} | Humidité: {reading.moisture_percent}% | Alerts: {alerts}")
-    return {"status": "stored", "bac_id": reading.bac_id, "alerts": alerts}
-
-@router.get("/readings/{bac_id}")
-def get_readings(bac_id: str, limit: int = 50, db: Session = Depends(get_db)):
-    """Récupère les dernières lectures d'un bac."""
-    readings = db.query(Reading).filter(Reading.bac_id == bac_id).order_by(Reading.timestamp.desc()).limit(limit).all()
-    return readings
+@router.get("/readings/{bac_id}", response_model=list[ReadingOut])
+def get_readings(
+    bac: Bac = Depends(get_bac_or_404),
+    # Limite bornée : personne ne peut demander 10 millions de lignes d'un coup.
+    limit: int = Query(default=50, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """Dernières mesures d'un bac, de la plus récente à la plus ancienne."""
+    return db.scalars(
+        select(Reading)
+        .where(Reading.bac_id == bac.id)
+        .order_by(Reading.measured_at.desc())
+        .limit(limit)
+    ).all()

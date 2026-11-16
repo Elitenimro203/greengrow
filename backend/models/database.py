@@ -1,66 +1,39 @@
-from sqlalchemy import create_engine, Column, String, Float, Boolean, Integer, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-import os
-from dotenv import load_dotenv
+"""
+GreenGrow — Connexion à la base de données
+===========================================
+Ce fichier ne contient que la "plomberie" : le moteur, la fabrique de
+sessions et la classe de base des tables. Les tables elles-mêmes sont dans
+entities.py.
+"""
 
-load_dotenv()
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///.greengrow_dev.db")
+from backend.config import get_settings
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+settings = get_settings()
+
+# check_same_thread ne concerne que SQLite. On ne le passe donc que pour
+# SQLite, sinon PostgreSQL refuserait cet argument inconnu.
+connect_args = (
+    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+)
+
+engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
-class Bac(Base):
-    __tablename__ = "bacs"
-    __table_args__ = {'extend_existing': True}
 
-    id = Column(Integer, primary_key=True, index=True)
-    bac_id = Column(String, unique=True, index=True)
-    nom = Column(String)
-    localisation = Column(String)
-    date_creation = Column(DateTime, default=datetime.utcnow)
+class Base(DeclarativeBase):
+    """Classe mère de toutes les tables."""
 
-class Reading(Base):
-    __tablename__ = "readings"
-    __table_args__ = {'extend_existing': True}
-
-    id = Column(Integer, primary_key=True, index=True)
-    bac_id = Column(String, index=True)
-    timestamp = Column(Float)
-    moisture_percent = Column(Float)
-    temperature_celsius = Column(Float)
-    humidity_air_percent = Column(Float)
-    pump_active = Column(Boolean)
-    source = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class Alert(Base):
-    __tablename__ = "alerts"
-    __table_args__ = {'extend_existing': True}
-
-    alert_id = Column(Integer, primary_key=True, index=True)
-    bac_id = Column(String, index=True)
-    type = Column(String)
-    message = Column(String)
-    timestamp = Column(Float)
-    is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 def get_db():
     """
-    Générateur de session DB.
-    Ouvre une connexion, la fournit, puis la ferme proprement.
+    Fournit une session de base à une route, puis la ferme proprement,
+    même si la route plante (c'est le rôle du finally).
     """
-
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-    
-def init_db():
-    """Crée toutes les tables si elles n'existent pas encore."""
-    Base.metadata.create_all(bind=engine)
