@@ -11,7 +11,7 @@ une irrigation automatisée et une IA de détection de maladies des plantes.
 
 - **Backend** : Python 3.11 · FastAPI · SQLAlchemy · Alembic · SQLite (dev) → PostgreSQL (prod)
 - **IA** : TensorFlow · MobileNetV3 · TFLite
-- **IoT** : MicroPython (ESP32) · Raspberry Pi Zero 2W
+- **IoT** : ESP32 (C++ Arduino) · MQTT sur TLS (Mosquitto)
 - **Frontend** : HTML/CSS/JS (dashboard web, v1)
 
 ---
@@ -69,7 +69,8 @@ python simulator/sensor_simulator.py
   identifiants MQTT et publie une mesure toutes les 5 secondes.
 - Journal du broker : `docker compose logs -f mosquitto`
 
-Explications détaillées : `docs/etape-1-backend.md`, `docs/etape-2-mqtt.md`.
+Explications détaillées : `docs/etape-1-backend.md`, `docs/etape-2-mqtt.md`,
+`docs/etape-3-firmware.md` (firmware ESP32 et simulation Wokwi).
 
 ---
 
@@ -105,6 +106,7 @@ greengrow/
 ├── docker-compose.yml # Lance le broker
 ├── migrations/        # Historique du schéma de la base (Alembic)
 ├── tests/             # Tests automatiques (pytest)
+├── firmware/          # Firmware ESP32 du bac, montage Wokwi et tests de sa logique
 ├── simulator/         # Bac simulé : se connecte en MQTT comme un vrai ESP32
 ├── ai/                # Pipeline IA détection maladies
 │   ├── training/      # Entraînement modèle

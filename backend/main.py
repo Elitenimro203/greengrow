@@ -43,7 +43,7 @@ app = FastAPI(
     lifespan=lifespan,
     title="GreenGrow API",
     description="API de gestion des bacs de culture intelligents",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 # CORS : quels sites web ont le droit d'appeler l'API depuis un navigateur.
@@ -52,7 +52,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Content-Type", "X-Admin-Key"],
 )
 

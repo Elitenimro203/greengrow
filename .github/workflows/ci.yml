@@ -54,3 +54,29 @@ jobs:
       - name: Journal du broker en cas d'échec
         if: failure()
         run: docker compose logs mosquitto
+
+  firmware:
+    # 1. La logique d'arrosage est testée sur le PC de GitHub, sans ESP32.
+    # 2. Le firmware complet est compilé pour ESP32 : une erreur de code
+    #    se voit ici, avant d'ouvrir Wokwi.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests de la logique (arrosage, garde-fous, commandes)
+        working-directory: firmware/tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -o test_logic test_logic.cpp
+          ./test_logic
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/greengrow_bac/platformio.ini') }}
+      - name: Compilation du firmware pour ESP32
+        working-directory: firmware/greengrow_bac
+        run: |
+          pip install platformio
+          cp secrets.example.h secrets.h
+          pio run

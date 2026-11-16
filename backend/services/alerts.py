@@ -70,3 +70,30 @@ def evaluate(
         if alert is not None:
             opened.append(alert)
     return opened
+
+
+# Événements d'un bac qui ouvrent ou ferment une alerte.
+#   type d'événement -> (type d'alerte, ouvrir ?, message)
+_DEVICE_ALERTS = {
+    "fault_no_moisture_rise": (
+        "device_fault", True,
+        "Mode sécurité : la pompe a tourné mais le sol n'est pas plus humide "
+        "(tuyau, pompe ou capteur à vérifier)",
+    ),
+    "fault_sensor": ("device_fault", True, "Mode sécurité : capteur d'humidité du sol en panne"),
+    "fault_cleared": ("device_fault", False, ""),
+    "reservoir_empty": ("reservoir_empty", True, "Réservoir vide : arrosage impossible"),
+    "watering_stopped_reservoir_empty": (
+        "reservoir_empty", True, "Réservoir vide : arrosage interrompu",
+    ),
+    "reservoir_ok": ("reservoir_empty", False, ""),
+}
+
+
+def on_device_event(db: Session, bac: Bac, event_type: str, when: datetime) -> Alert | None:
+    """Traduit un événement du bac en alerte (même règle : une alerte par problème)."""
+    rule = _DEVICE_ALERTS.get(event_type)
+    if rule is None:
+        return None
+    alert_type, in_alarm, message = rule
+    return _update(db, bac, alert_type, in_alarm, 0.0, f"{message} sur {bac.nom}", when)

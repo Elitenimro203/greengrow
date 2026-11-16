@@ -13,7 +13,7 @@ aucune modification du code.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, false
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.models.database import Base
@@ -95,3 +95,20 @@ class Alert(Base):
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_value: Mapped[float] = mapped_column(Float)
+
+
+class BacEvent(Base):
+    """
+    Le journal de bord d'un bac : ce qu'il a FAIT (pompe démarrée, arrêtée,
+    mode sécurité, commande exécutée ou refusée...). Les mesures disent
+    comment va la plante ; les événements disent ce que le bac a décidé.
+    """
+
+    __tablename__ = "bac_events"
+    __table_args__ = (Index("ix_bac_events_bac_occurred", "bac_id", "occurred_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bac_id: Mapped[int] = mapped_column(ForeignKey("bacs.id"))
+    type: Mapped[str] = mapped_column(String(40))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict] = mapped_column(JSON, default=dict)

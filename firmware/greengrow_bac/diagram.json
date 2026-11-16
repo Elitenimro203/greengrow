@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "author": "greengrow",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-dht22", "id": "dht", "top": -130, "left": 180, "attrs": { "temperature": "28", "humidity": "70" } },
+    { "type": "wokwi-slide-potentiometer", "id": "soil", "top": 190, "left": 150, "attrs": { "travelLength": "30", "value": "2600" } },
+    { "type": "wokwi-slide-switch", "id": "reservoir", "top": 60, "left": -160, "attrs": {} },
+    { "type": "wokwi-relay-module", "id": "relay", "top": -110, "left": -230, "attrs": {} },
+    { "type": "wokwi-led", "id": "pumpLed", "top": 150, "left": -200, "attrs": { "color": "blue", "label": "POMPE" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": 215, "left": -150, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "dht:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "dht:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "dht:SDA", "esp:D15", "green", [ "v0" ] ],
+    [ "soil:VCC", "esp:3V3", "red", [ "h0" ] ],
+    [ "soil:GND", "esp:GND.1", "black", [ "h0" ] ],
+    [ "soil:SIG", "esp:D34", "orange", [ "h0" ] ],
+    [ "reservoir:2", "esp:D27", "blue", [ "v0" ] ],
+    [ "reservoir:1", "esp:GND.2", "black", [ "v0" ] ],
+    [ "relay:VCC", "esp:VIN", "red", [ "h0" ] ],
+    [ "relay:GND", "esp:GND.2", "black", [ "h0" ] ],
+    [ "relay:IN", "esp:D26", "purple", [ "h0" ] ],
+    [ "esp:D26", "r1:2", "purple", [ "h0" ] ],
+    [ "r1:1", "pumpLed:A", "purple", [ "h0" ] ],
+    [ "pumpLed:C", "esp:GND.2", "black", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}

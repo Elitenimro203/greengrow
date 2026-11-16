@@ -133,7 +133,8 @@ def main() -> None:
         ca_crt.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
         print("Nouvelle CA créée (certs/ca.crt)")
 
-    hosts = ["localhost", "mosquitto", "127.0.0.1", *args.host]
+    # host.wokwi.internal : le nom sous lequel un ESP32 simulé sur Wokwi voit ton PC.
+    hosts = ["localhost", "mosquitto", "127.0.0.1", "host.wokwi.internal", *args.host]
     key, cert = make_server(ca_key, ca_cert, hosts)
     _write_key(CERTS / "server.key", key)
     # Lisible par le conteneur Mosquitto (certificat de DÉVELOPPEMENT uniquement).
