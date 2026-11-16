@@ -17,6 +17,7 @@ pydantic-settings==2.5.2   # Lecture du fichier .env
 
 # Communication MQTT (capteurs IoT)
 paho-mqtt==2.1.0
+cryptography==43.0.1       # Génération des certificats TLS de développement
 
 # Variables d'environnement
 python-dotenv==1.0.1

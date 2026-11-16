@@ -5,29 +5,50 @@ Chaque test reçoit une base SQLite neuve, en mémoire : les tests ne touchent
 jamais ta vraie base et ne dépendent pas les uns des autres.
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+import os
 
-from backend.main import app
-from backend.models import entities  # noqa: F401  (déclare les tables)
-from backend.models.database import Base, get_db
+# Réglages des tests, posés AVANT d'importer l'application : une clé admin
+# connue et pas de broker (les tests ne dépendent d'aucun service extérieur).
+os.environ["ADMIN_API_KEY"] = "cle-de-test"
+os.environ["MQTT_ENABLED"] = "false"
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from backend.main import app  # noqa: E402
+from backend.models import entities  # noqa: E402,F401  (déclare les tables)
+from backend.models.database import Base, get_db  # noqa: E402
+
+
+ADMIN = {"X-Admin-Key": "cle-de-test"}
 
 
 @pytest.fixture
-def client():
+def db_session_factory():
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,  # une seule connexion : la base en mémoire est partagée
     )
     Base.metadata.create_all(engine)
-    TestSession = sessionmaker(bind=engine, autoflush=False)
+    return sessionmaker(bind=engine, autoflush=False)
 
+
+@pytest.fixture
+def db(db_session_factory):
+    """Une session directe sur la base de test (pour tester l'ingestion MQTT)."""
+    session = db_session_factory()
+    yield session
+    session.close()
+
+
+@pytest.fixture
+def client(db_session_factory):
     def override_get_db():
-        db = TestSession()
+        db = db_session_factory()
         try:
             yield db
         finally:
@@ -35,7 +56,8 @@ def client():
 
     # On remplace la vraie base par la base de test, le temps du test.
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    # Par défaut, le client de test envoie la clé d'administration.
+    yield TestClient(app, headers=ADMIN)
     app.dependency_overrides.clear()
 
 

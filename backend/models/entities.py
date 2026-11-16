@@ -13,7 +13,7 @@ aucune modification du code.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.models.database import Base
@@ -50,6 +50,10 @@ class Bac(Base):
     moisture_low: Mapped[float] = mapped_column(Float)
     moisture_high: Mapped[float] = mapped_column(Float)
     temp_max: Mapped[float] = mapped_column(Float)
+
+    # État de connexion, tenu à jour par l'ingestion MQTT (topic .../status).
+    online: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

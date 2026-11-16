@@ -36,6 +36,28 @@ class Settings(BaseSettings):
     moisture_threshold_high: float = 80.0
     temp_max_celsius: float = 35.0
 
+    # --- Sécurité de l'API ---
+    # Clé exigée (en-tête X-Admin-Key) pour les actions sensibles : enregistrer
+    # un bac, renouveler ses identifiants. Vide = ces actions sont désactivées.
+    # Elle sera remplacée par un vrai login à l'étape 4.
+    admin_api_key: str = ""
+
+    # --- MQTT ---
+    # false = l'API fonctionne sans broker (tests, premiers pas).
+    mqtt_enabled: bool = False
+    mqtt_host: str = "localhost"
+    mqtt_port: int = 8883
+    # Certificat de l'autorité (CA) qui a signé celui du broker. Le backend
+    # refuse de se connecter à un broker qui ne présente pas un certificat
+    # signé par cette CA.
+    mqtt_ca_file: str = "certs/ca.crt"
+    # Compte administrateur du broker : sert UNIQUEMENT à créer les comptes.
+    mqtt_admin_user: str = "admin"
+    mqtt_admin_password: str = ""
+    # Compte du backend : lit les mesures, enverra les commandes. Rien d'autre.
+    mqtt_backend_user: str = "greengrow-backend"
+    mqtt_backend_password: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
