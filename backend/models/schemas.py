@@ -64,6 +64,32 @@ class BacCreate(BaseModel):
     temp_max: Optional[float] = Field(default=None, ge=-10, le=60)
 
 
+class BacUpdate(BaseModel):
+    """Modification d'un bac : on n'envoie que ce qu'on veut changer."""
+
+    nom: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    moisture_low: Optional[float] = None
+    moisture_high: Optional[float] = None
+    temp_max: Optional[float] = Field(default=None, ge=-10, le=60)
+
+
+class DeviceEvent(BaseModel):
+    """Un événement publié par un bac sur son topic .../event."""
+
+    model_config = ConfigDict(extra="allow")  # les détails varient selon le type
+
+    type: str = Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")
+    timestamp: Optional[UtcDatetime] = None
+
+
+class EventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    type: str
+    occurred_at: UtcDatetime
+    details: dict
+
+
 class BacOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

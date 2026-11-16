@@ -7,10 +7,23 @@ from backend.models.database import get_db
 from backend.models.entities import Bac, Site
 from backend.api.deps import get_bac_or_404
 from backend.api.security import require_admin
-from backend.models.schemas import BacCreate, BacCreated, BacOut, MqttCredentials
-from backend.mqtt import dynsec, topics
+from backend.models.schemas import BacCreate, BacCreated, BacOut, BacUpdate, MqttCredentials
+from backend.mqtt import dynsec, ingestion, topics
 
 router = APIRouter(tags=["bacs"])
+
+
+def _check_thresholds(low: float, high: float) -> None:
+    """
+    Les mêmes limites que celles du firmware (irrigation.h, isValidConfig) :
+    inutile d'enregistrer des seuils que le bac refuserait d'appliquer.
+    """
+    if low < 5 or high > 95 or low + 5 > high:
+        raise HTTPException(
+            status_code=422,
+            detail="Seuils invalides : il faut 5 <= moisture_low, moisture_high <= 95 "
+            "et au moins 5 points d'écart entre les deux",
+        )
 
 
 def _provision(bac: Bac) -> MqttCredentials:
@@ -45,8 +58,7 @@ def create_bac(payload: BacCreate, db: Session = Depends(get_db)):
 
     low = payload.moisture_low if payload.moisture_low is not None else settings.moisture_threshold_low
     high = payload.moisture_high if payload.moisture_high is not None else settings.moisture_threshold_high
-    if low >= high:
-        raise HTTPException(status_code=422, detail="moisture_low doit être inférieur à moisture_high")
+    _check_thresholds(low, high)
 
     site = db.scalar(select(Site).where(Site.slug == payload.site))
     if site is None:
@@ -71,7 +83,25 @@ def create_bac(payload: BacCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(bac)
+    ingestion.publish_config(bac)  # ses seuils l'attendent déjà sur le broker
     return BacCreated.model_validate(bac).model_copy(update={"mqtt": mqtt})
+
+
+@router.patch("/bacs/{bac_id}", response_model=BacOut, dependencies=[Depends(require_admin)])
+def update_bac(
+    payload: BacUpdate, bac: Bac = Depends(get_bac_or_404), db: Session = Depends(get_db)
+):
+    """Modifie le nom ou les seuils d'un bac, puis envoie les nouveaux seuils au bac."""
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    low = changes.get("moisture_low", bac.moisture_low)
+    high = changes.get("moisture_high", bac.moisture_high)
+    _check_thresholds(low, high)
+    for field, value in changes.items():
+        setattr(bac, field, value)
+    db.commit()
+    db.refresh(bac)
+    ingestion.publish_config(bac)
+    return bac
 
 
 @router.post(

@@ -46,3 +46,7 @@ temp/
 # Certificats et clés TLS locaux, identifiants du simulateur
 certs/
 simulator/.credentials.json
+
+# Secrets et fichiers de compilation du firmware
+firmware/greengrow_bac/secrets.h
+.pio/
