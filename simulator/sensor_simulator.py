@@ -10,14 +10,15 @@ C'est la règle d'or du dev IoT : le software doit être testable sans le hardwa
 Lancement : python simulator/sensor_simulator.py
 """
 
+import os
 import time
 import random
 import json
 import httpx  # Client HTTP — on "parle" à notre propre API
 
 # ---- Configuration ----
-API_URL = "http://localhost:8000"  # URL de notre API locale
-BAC_ID = "bac_prototype_01"        # Identifiant unique du bac simulé
+API_URL = os.getenv("GREENGROW_API_URL", "http://localhost:8000")  # URL de notre API
+BAC_ID = "bac-sim-01"              # Identifiant unique du bac simulé
 INTERVAL_SECONDS = 5               # Envoi toutes les 5 secondes
 
 
@@ -39,6 +40,28 @@ def generate_sensor_reading() -> dict:
         "pump_active": False,  # La pompe est-elle en train d'arroser ?
         "source": "simulator",  # Marque les données comme simulées
     }
+
+
+def register_bac() -> None:
+    """
+    Enregistre le bac simulé auprès de l'API s'il n'existe pas encore.
+    L'API refuse désormais les mesures d'un bac inconnu (404) : comme un vrai
+    bac, le simulateur doit d'abord être déclaré.
+    """
+    try:
+        response = httpx.post(
+            f"{API_URL}/api/bacs",
+            json={"bac_id": BAC_ID, "nom": "Bac simulé", "site": "abidjan"},
+            timeout=3.0,
+        )
+        if response.status_code == 201:
+            print(f"🆕 Bac {BAC_ID} enregistré")
+        elif response.status_code == 409:
+            print(f"✔️  Bac {BAC_ID} déjà enregistré")
+        else:
+            print(f"❌ Enregistrement du bac refusé : {response.status_code} {response.text}")
+    except httpx.ConnectError:
+        print("⚠️  API non joignable — le bac sera enregistré au prochain lancement")
 
 
 def send_reading(reading: dict) -> None:
@@ -66,6 +89,8 @@ def main():
     print(f"⏱  Intervalle : {INTERVAL_SECONDS}s")
     print("─" * 50)
     print("Ctrl+C pour arrêter\n")
+
+    register_bac()
 
     while True:
         reading = generate_sensor_reading()

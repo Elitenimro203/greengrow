@@ -9,7 +9,7 @@ une irrigation automatisée et une IA de détection de maladies des plantes.
 
 ## Stack technique
 
-- **Backend** : Python 3.11 · FastAPI · SQLite (dev) → PostgreSQL (prod)
+- **Backend** : Python 3.11 · FastAPI · SQLAlchemy · Alembic · SQLite (dev) → PostgreSQL (prod)
 - **IA** : TensorFlow · MobileNetV3 · TFLite
 - **IoT** : MicroPython (ESP32) · Raspberry Pi Zero 2W
 - **Frontend** : HTML/CSS/JS (dashboard web, v1)
@@ -45,7 +45,10 @@ pip install -r requirements.txt
 cp .env.example .env
 # Édite .env avec tes valeurs
 
-# 5. Lancer le serveur
+# 5. Créer ou mettre à jour la base de données (migrations)
+alembic upgrade head
+
+# 6. Lancer le serveur
 uvicorn backend.main:app --reload
 ```
 
@@ -61,6 +64,19 @@ La documentation API auto-générée : http://localhost:8000/docs
 python simulator/sensor_simulator.py
 ```
 
+Le simulateur enregistre son bac (`bac-sim-01`) tout seul au démarrage.
+
+---
+
+## Lancer les tests
+
+```bash
+pytest
+```
+
+Les tests utilisent une base en mémoire : ils ne touchent jamais à ta vraie base.
+Ils tournent aussi automatiquement sur GitHub à chaque push (onglet Actions).
+
 ---
 
 ## Structure du projet
@@ -68,9 +84,12 @@ python simulator/sensor_simulator.py
 ```
 greengrow/
 ├── backend/           # API FastAPI
-│   ├── api/           # Routes HTTP
-│   ├── services/      # Logique métier
-│   └── models/        # Modèles de données
+│   ├── config.py      # Configuration (lue depuis .env)
+│   ├── api/           # Routes HTTP (bacs, mesures, alertes)
+│   ├── services/      # Logique métier (enregistrement, alertes)
+│   └── models/        # Tables (entities) et schémas d'entrée/sortie (schemas)
+├── migrations/        # Historique du schéma de la base (Alembic)
+├── tests/             # Tests automatiques (pytest)
 ├── simulator/         # Simule les capteurs ESP32 (dev sans hardware)
 ├── ai/                # Pipeline IA détection maladies
 │   ├── training/      # Entraînement modèle
