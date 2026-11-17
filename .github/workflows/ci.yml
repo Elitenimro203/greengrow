@@ -12,12 +12,19 @@ permissions:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    # La plus ancienne et la plus récente version de Python prises en charge,
+    # sous Linux et sous Windows (le système de développement du projet).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.14"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements.txt
       - name: Les migrations créent bien la base

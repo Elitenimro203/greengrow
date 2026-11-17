@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.config import get_settings
 from backend.models.database import get_db
-from backend.models.entities import Bac, Site
+from backend.models.entities import Bac, Site, User
 from backend.api.deps import get_bac_or_404
-from backend.api.security import require_admin
+from backend.api.security import client_ip, require_owner
 from backend.models.schemas import BacCreate, BacCreated, BacOut, BacUpdate, MqttCredentials
 from backend.mqtt import dynsec, ingestion, topics
+from backend.services import audit
 
 router = APIRouter(tags=["bacs"])
 
@@ -42,10 +43,13 @@ def _provision(bac: Bac) -> MqttCredentials:
     )
 
 
-@router.post(
-    "/bacs", response_model=BacCreated, status_code=201, dependencies=[Depends(require_admin)]
-)
-def create_bac(payload: BacCreate, db: Session = Depends(get_db)):
+@router.post("/bacs", response_model=BacCreated, status_code=201)
+def create_bac(
+    payload: BacCreate,
+    request: Request,
+    user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
     """
     Enregistre un nouveau bac (et son site s'il n'existe pas encore), puis
     crée son compte MQTT. Le mot de passe n'apparaît que dans CETTE réponse.
@@ -81,15 +85,20 @@ def create_bac(payload: BacCreate, db: Session = Depends(get_db)):
     # en base sans compte MQTT.
     mqtt = _provision(bac) if settings.mqtt_enabled else None
 
+    audit.record(db, "bac_created", user=user, target=bac.slug, ip=client_ip(request))
     db.commit()
     db.refresh(bac)
     ingestion.publish_config(bac)  # ses seuils l'attendent déjà sur le broker
     return BacCreated.model_validate(bac).model_copy(update={"mqtt": mqtt})
 
 
-@router.patch("/bacs/{bac_id}", response_model=BacOut, dependencies=[Depends(require_admin)])
+@router.patch("/bacs/{bac_id}", response_model=BacOut)
 def update_bac(
-    payload: BacUpdate, bac: Bac = Depends(get_bac_or_404), db: Session = Depends(get_db)
+    payload: BacUpdate,
+    request: Request,
+    bac: Bac = Depends(get_bac_or_404),
+    user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
 ):
     """Modifie le nom ou les seuils d'un bac, puis envoie les nouveaux seuils au bac."""
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
@@ -98,25 +107,30 @@ def update_bac(
     _check_thresholds(low, high)
     for field, value in changes.items():
         setattr(bac, field, value)
+    audit.record(db, "bac_updated", user=user, target=bac.slug, ip=client_ip(request), details=changes)
     db.commit()
     db.refresh(bac)
     ingestion.publish_config(bac)
     return bac
 
 
-@router.post(
-    "/bacs/{bac_id}/mqtt-credentials",
-    response_model=MqttCredentials,
-    dependencies=[Depends(require_admin)],
-)
-def rotate_mqtt_credentials(bac: Bac = Depends(get_bac_or_404)):
+@router.post("/bacs/{bac_id}/mqtt-credentials", response_model=MqttCredentials)
+def rotate_mqtt_credentials(
+    request: Request,
+    bac: Bac = Depends(get_bac_or_404),
+    user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
     """
     Génère un NOUVEAU mot de passe MQTT pour ce bac (l'ancien cesse de
     fonctionner). À utiliser si le mot de passe est perdu ou a fuité.
     """
     if not get_settings().mqtt_enabled:
         raise HTTPException(503, "MQTT est désactivé sur ce serveur (MQTT_ENABLED=false)")
-    return _provision(bac)
+    credentials = _provision(bac)
+    audit.record(db, "mqtt_credentials_rotated", user=user, target=bac.slug, ip=client_ip(request))
+    db.commit()
+    return credentials
 
 
 @router.get("/bacs", response_model=list[BacOut])

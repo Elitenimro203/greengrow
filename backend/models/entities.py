@@ -1,10 +1,15 @@
 """
 GreenGrow — Tables de la base de données
 =========================================
-Quatre tables, pensées dès le départ pour plusieurs bacs et plusieurs sites :
+Les tables, pensées dès le départ pour plusieurs bacs et plusieurs sites :
 
     Site  1 ── n  Bac  1 ── n  Reading   (les mesures)
                        1 ── n  Alert     (les alertes)
+                       1 ── n  BacEvent  (ce que le bac a fait)
+                       1 ── n  Command   (ce qu'on lui a demandé)
+
+    User  1 ── n  UserSession  (les connexions ouvertes)
+    AuditLog                   (qui a fait quoi, et quand)
 
 Un site = un lieu (un toit, une cour, une école). Un bac = un bac de culture
 avec SES seuils. Ajouter un bac ou une nouvelle culture ne demande donc
@@ -13,7 +18,7 @@ aucune modification du code.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, false
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.models.database import Base
@@ -111,4 +116,91 @@ class BacEvent(Base):
     bac_id: Mapped[int] = mapped_column(ForeignKey("bacs.id"))
     type: Mapped[str] = mapped_column(String(40))
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class User(Base):
+    """
+    Une personne qui peut se connecter au tableau de bord.
+
+    Le mot de passe n'est JAMAIS stocké : on ne garde que son empreinte
+    (password_hash, voir backend/services/passwords.py).
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    nom: Mapped[str] = mapped_column(String(100))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    # "owner"  : peut tout faire (bacs, seuils, commandes, journal d'audit)
+    # "viewer" : peut seulement regarder
+    role: Mapped[str] = mapped_column(String(20), default="viewer")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class UserSession(Base):
+    """
+    Une connexion ouverte. Le navigateur détient un jeton secret (dans un
+    cookie) ; la base ne garde que l'EMPREINTE de ce jeton. Si la base fuit,
+    les empreintes ne permettent pas de se connecter.
+    """
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship()
+
+
+class Command(Base):
+    """
+    Une commande envoyée à un bac ("arrose 10 secondes").
+
+    status : "sent"     envoyée, on attend la réponse du bac
+             "executed" le bac l'a exécutée
+             "rejected" le bac l'a refusée (reason dit pourquoi)
+             "expired"  aucune réponse avant l'heure limite
+    """
+
+    __tablename__ = "commands"
+    __table_args__ = (Index("ix_commands_bac_created", "bac_id", "created_at"),)
+
+    # L'identifiant est un UUID tiré au hasard : c'est lui que le bac renvoie
+    # dans son accusé de réception.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    bac_id: Mapped[int] = mapped_column(ForeignKey("bacs.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    type: Mapped[str] = mapped_column(String(30))
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="sent")
+    reason: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuditLog(Base):
+    """
+    Le journal d'audit : chaque action sensible y laisse une ligne (qui, quoi,
+    sur quoi, depuis quelle adresse). On n'y écrit qu'en ajout : aucune route
+    ne modifie ni ne supprime une ligne.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (Index("ix_audit_action_at", "action", "at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # user_id est vide pour une connexion ratée : il n'y a pas (encore) d'utilisateur.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    actor: Mapped[str] = mapped_column(String(254))  # l'e-mail utilisé, même s'il n'existe pas
+    action: Mapped[str] = mapped_column(String(40))
+    target: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     details: Mapped[dict] = mapped_column(JSON, default=dict)

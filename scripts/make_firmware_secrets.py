@@ -1,7 +1,7 @@
 """
 GreenGrow — Prépare le fichier secrets.h d'un bac
 ==================================================
-Lancement (API et broker démarrés) :
+Lancement (API et broker démarrés, compte propriétaire créé) :
 
     python scripts/make_firmware_secrets.py --bac bac01 --nom "Bac pilote"
 
@@ -23,6 +23,10 @@ import httpx
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from scripts.api_session import open_session  # noqa: E402
+
 OUTPUT = ROOT / "firmware" / "greengrow_bac" / "secrets.h"
 
 TEMPLATE = """// Fichier généré par scripts/make_firmware_secrets.py — NE PAS envoyer sur GitHub.
@@ -63,22 +67,15 @@ def main() -> None:
     if not ca_file.exists():
         sys.exit("❌ certs/ca.crt introuvable. Lance d'abord : python scripts/make_dev_certs.py")
 
-    headers = {"X-Admin-Key": os.getenv("ADMIN_API_KEY", "")}
+    api = open_session(args.api)  # te demande ton e-mail et ton mot de passe
     try:
-        response = httpx.post(
-            f"{args.api}/api/bacs",
-            json={"bac_id": args.bac, "nom": args.nom or args.bac, "site": args.site},
-            headers=headers,
-            timeout=10.0,
+        response = api.post(
+            "/api/bacs", json={"bac_id": args.bac, "nom": args.nom or args.bac, "site": args.site}
         )
         if response.status_code == 409:
             print(f"Le bac {args.bac} existe déjà : nouveau mot de passe MQTT demandé.")
-            response = httpx.post(
-                f"{args.api}/api/bacs/{args.bac}/mqtt-credentials", headers=headers, timeout=10.0
-            )
+            response = api.post(f"/api/bacs/{args.bac}/mqtt-credentials")
         response.raise_for_status()
-    except httpx.ConnectError:
-        sys.exit("❌ API non joignable. Lance d'abord : uvicorn backend.main:app --reload")
     except httpx.HTTPStatusError as exc:
         sys.exit(f"❌ Refusé par l'API : {exc.response.status_code} {exc.response.text}")
 

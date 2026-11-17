@@ -57,7 +57,8 @@ def test_renouveler_les_identifiants(client, mqtt_on):
     assert r.json()["password"] == "motdepasse-2"
 
 
-def test_renouveler_exige_la_cle(client, mqtt_on):
+def test_renouveler_est_reserve_au_proprietaire(client, viewer, mqtt_on):
     client.post("/api/bacs", json={"bac_id": "bac01", "nom": "Bac pilote"})
-    r = client.post("/api/bacs/bac01/mqtt-credentials", headers={"X-Admin-Key": "x"})
-    assert r.status_code == 401
+    calls = len(mqtt_on)
+    assert viewer.post("/api/bacs/bac01/mqtt-credentials").status_code == 403
+    assert len(mqtt_on) == calls  # le broker n'a rien reçu
