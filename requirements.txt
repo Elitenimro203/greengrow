@@ -1,32 +1,34 @@
 # ============================================================
 # GreenGrow — Dépendances Python
 # Installation : pip install -r requirements.txt
+# Python 3.11 à 3.14. Toutes ces versions existent en paquets précompilés
+# (wheels) pour Windows, macOS et Linux : rien n'est compilé à l'installation.
 # ============================================================
 
 # API Backend
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+fastapi==0.163.1
+uvicorn[standard]==0.54.0
 
 # Base de données
-sqlalchemy==2.0.35
-alembic==1.13.3            # Migrations de schéma
+sqlalchemy==2.1.9
+alembic==1.20.1            # Migrations de schéma
 
 # Validation des données
-pydantic==2.9.2
-pydantic-settings==2.5.2   # Lecture du fichier .env
+pydantic==2.14.3
+pydantic-settings==2.16.3   # Lecture du fichier .env
 
 # Communication MQTT (capteurs IoT)
-paho-mqtt==2.1.0
-cryptography==43.0.1       # Génération des certificats TLS de développement
+paho-mqtt==2.2.0
+cryptography==50.0.2       # Génération des certificats TLS de développement
 
 # Variables d'environnement
-python-dotenv==1.0.1
+python-dotenv==1.2.4
 
 # Utilitaires
-httpx==0.27.2              # Client HTTP (simulateur et tests)
+httpx==0.28.1              # Client HTTP (simulateur et tests)
 
 # Tests
-pytest==8.3.3
+pytest==9.2.0
 
 # ---- IA (à décommenter quand on attaque le module IA) ----
 # tensorflow==2.17.0

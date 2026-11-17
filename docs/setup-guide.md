@@ -63,16 +63,16 @@ Fais ça une fois. C'est permanent.
 2. "Sign up" avec ton email
 3. Choisis un username propre — ce sera visible sur ton profil pro
 
-### Étape 4 : Installer Python 3.11
+### Étape 4 : Installer Python (3.11 à 3.14)
 
 1. Va sur https://www.python.org/downloads/
-2. Télécharge Python 3.11.x (pas la 3.12+ pour l'instant — compatibilité TF)
+2. Télécharge une version entre 3.11 et 3.14 (le projet est testé sur 3.11 et 3.14)
 3. **IMPORTANT** : Coche "Add Python to PATH" pendant l'installation
 
 **Vérification :**
 ```bash
 python --version
-# Doit afficher : Python 3.11.x
+# Doit afficher une version entre 3.11 et 3.14
 ```
 
 ---

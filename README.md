@@ -9,7 +9,7 @@ une irrigation automatisée et une IA de détection de maladies des plantes.
 
 ## Stack technique
 
-- **Backend** : Python 3.11 · FastAPI · SQLAlchemy · Alembic · SQLite (dev) → PostgreSQL (prod)
+- **Backend** : Python 3.11 à 3.14 · FastAPI · SQLAlchemy · Alembic · SQLite (dev) → PostgreSQL (prod)
 - **IA** : TensorFlow · MobileNetV3 · TFLite
 - **IoT** : ESP32 (C++ Arduino) · MQTT sur TLS (Mosquitto)
 - **Frontend** : HTML/CSS/JS (dashboard web, v1)
@@ -18,7 +18,7 @@ une irrigation automatisée et une IA de détection de maladies des plantes.
 
 ## Prérequis
 
-- Python 3.11+
+- Python 3.11, 3.12, 3.13 ou 3.14 (testé sur 3.11 et 3.14 à chaque push)
 - Git
 - Docker Desktop (pour le broker MQTT)
 
@@ -37,7 +37,11 @@ venv\Scripts\activate          # Windows
 source venv/bin/activate       # Mac/Linux
 
 # 3. Installer les dépendances
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+# Si pip se met à COMPILER un paquet (messages "Building wheel", Rust, link.exe),
+# c'est que ta version de Python est plus récente que celles prévues ici :
+# installe Python 3.12 ou préviens-moi pour mettre les dépendances à jour.
 
 # 4. Configurer les secrets
 cp .env.example .env
