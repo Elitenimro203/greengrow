@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.entities import Alert, Bac, Reading, utcnow
 from backend.models.schemas import Measurement
-from backend.services import alerts
+from backend.services import alerts, notify
 
 
 def record_reading(db: Session, bac: Bac, data: Measurement) -> list[Alert]:
@@ -33,4 +33,8 @@ def record_reading(db: Session, bac: Bac, data: Measurement) -> list[Alert]:
     )
     # Un seul commit : soit la mesure ET ses alertes sont enregistrées, soit rien.
     db.commit()
+    # Seulement APRÈS le commit : on ne prévient pas pour une alerte qui
+    # n'aurait finalement pas été enregistrée.
+    for alert in opened:
+        notify.alert_opened(alert.message)
     return opened

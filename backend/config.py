@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # Nombre maximum de commandes par bac et par minute.
     command_max_per_minute: int = 6
 
+    # --- Alertes Telegram (facultatif) ---
+    # Jeton du bot (donné par @BotFather) et identifiant de la conversation
+    # où envoyer les alertes. Vides = pas de notification.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     # --- MQTT ---
     # false = l'API fonctionne sans broker (tests, premiers pas).
     mqtt_enabled: bool = False

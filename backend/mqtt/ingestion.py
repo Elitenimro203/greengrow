@@ -25,7 +25,7 @@ from backend.models.entities import Bac, BacEvent, Site, utcnow
 from backend.models.schemas import DeviceEvent, Measurement
 from backend.mqtt import topics
 from backend.mqtt.client import new_client
-from backend.services import alerts
+from backend.services import alerts, notify
 from backend.services.readings import record_reading
 
 log = logging.getLogger("greengrow.mqtt")
@@ -78,7 +78,7 @@ def handle_message(db: Session, raw_topic: str, payload: bytes) -> str:
         when = event.timestamp or utcnow()
         details = {k: v for k, v in (event.model_extra or {}).items() if _is_simple(v)}
         db.add(BacEvent(bac_id=bac.id, type=event.type, occurred_at=when, details=details))
-        alerts.on_device_event(db, bac, event.type, when)
+        opened = alerts.on_device_event(db, bac, event.type, when)
         if event.type == "cmd_ack":
             # Import ici : commands.py a lui-même besoin de ce module pour publier.
             from backend.services import commands
@@ -86,6 +86,8 @@ def handle_message(db: Session, raw_topic: str, payload: bytes) -> str:
             commands.on_ack(db, bac, details)
         bac.last_seen_at = utcnow()
         db.commit()
+        if opened is not None:
+            notify.alert_opened(opened.message)
         return "event"
 
     return "ignored: canal non géré"

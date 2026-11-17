@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>GreenGrow</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Chargé tôt, pour appliquer le thème choisi avant le premier affichage. -->
+  <script src="/static/theme.js"></script>
+</head>
+<body>
+  <!-- Bibliothèque d'icônes : dessinées une fois ici, réutilisées avec <use>. -->
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 4c-8 0-14 3.5-14 10 0 1.4.3 2.6.9 3.6C9 13 12.500 10.500 16 9c-3 2.500-5.500 5.500-7 9.800 1 .8 2.300 1.200 3.800 1.200C19 20 20 12 20 4Z" fill="currentColor"/><path d="M4 21c.6-2.200 1.600-4.200 2.900-6" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.500c3.200 3.700 6 7 6 10.300a6 6 0 0 1-12 0c0-3.300 2.800-6.600 6-10.300Z" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round"/></symbol>
+    <symbol id="i-temp" viewBox="0 0 24 24"><path d="M10 4.500a2 2 0 0 1 4 0v9.200a4 4 0 1 1-4 0V4.500Z" fill="none" stroke="currentColor" stroke-width="1.800"/><circle cx="12" cy="17" r="1.600" fill="currentColor"/></symbol>
+    <symbol id="i-air" viewBox="0 0 24 24"><path d="M3 9h10.500a2.500 2.500 0 1 0-2.500-2.500M3 14h14.500a2.500 2.500 0 1 1-2.500 2.500M3 11.500h6" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/></symbol>
+    <symbol id="i-pump" viewBox="0 0 24 24"><path d="M12 3v9M7.500 6.200a7 7 0 1 0 9 0" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.800"/><path d="m8 12.300 2.700 2.700L16 9.500" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 19.500H3L12 4Z" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round"/><path d="M12 10v4.500" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M4 4l16 16M8.500 15.500a5 5 0 0 1 5-1M5.500 12a9 9 0 0 1 3.300-2.300M12.500 8.500a9.500 9.500 0 0 1 6.500 3.500M2.500 9A13 13 0 0 1 6 6.500M10.500 5a13.500 13.500 0 0 1 11 4" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/><circle cx="12" cy="19" r="1.200" fill="currentColor"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.800"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h9" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <!-- ============ Écran de connexion ============ -->
+  <main id="login-view" class="login" hidden>
+    <div class="login-card">
+      <div class="brand brand-lg">
+        <span class="logo"><svg><use href="#i-leaf"/></svg></span>
+        <span>GreenGrow</span>
+      </div>
+      <p class="tagline">Agriculture urbaine intelligente · Abidjan</p>
+      <form id="login-form">
+        <label for="login-email">E-mail</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="btn primary block">Se connecter</button>
+        <p id="login-error" class="form-error" role="alert"></p>
+      </form>
+    </div>
+  </main>
+
+  <!-- ============ Tableau de bord ============ -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="logo"><svg><use href="#i-leaf"/></svg></span>
+          <span>GreenGrow</span>
+        </div>
+        <nav id="bac-list" class="bac-list" aria-label="Choisir un bac"></nav>
+        <div class="user">
+          <div class="user-text">
+            <span id="user-name" class="user-name"></span>
+            <span id="user-role" class="user-role"></span>
+          </div>
+          <button id="theme-toggle" type="button" class="btn icon" title="Thème clair / sombre" aria-label="Changer de thème"><svg><use href="#i-theme"/></svg></button>
+          <button id="logout" type="button" class="btn icon" title="Se déconnecter" aria-label="Se déconnecter"><svg><use href="#i-logout"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <section id="bac-empty" class="card empty" hidden>
+        <span class="logo"><svg><use href="#i-leaf"/></svg></span>
+        <h2>Aucun bac pour l'instant</h2>
+        <p>Lance le bac simulé avec <code>python simulator/sensor_simulator.py</code>, il apparaîtra ici.</p>
+      </section>
+
+      <div id="bac-detail" hidden>
+        <div class="bac-header">
+          <div>
+            <h1 id="bac-name"></h1>
+            <p id="bac-meta" class="muted"></p>
+          </div>
+          <span id="bac-status" class="pill"></span>
+        </div>
+
+        <!-- La phrase qui résume l'état du bac -->
+        <section id="banner" class="banner" aria-live="polite">
+          <span class="banner-icon"><svg><use id="banner-use" href="#i-check"/></svg></span>
+          <div>
+            <p id="banner-title" class="banner-title"></p>
+            <p id="banner-text" class="banner-text"></p>
+          </div>
+        </section>
+
+        <div class="grid">
+          <!-- Colonne principale -->
+          <div class="col-main">
+            <section class="card o-hero">
+              <div class="card-head">
+                <h2><svg class="ico c-water"><use href="#i-drop"/></svg>Humidité du sol</h2>
+                <span id="moisture-updated" class="muted"></span>
+              </div>
+              <div class="hero">
+                <p class="hero-value"><span id="v-moisture">–</span><span class="unit">%</span></p>
+                <div class="meter-wrap">
+                  <div class="meter" id="meter" role="img">
+                    <div class="meter-zone" id="meter-zone"></div>
+                    <div class="meter-marker" id="meter-marker"></div>
+                  </div>
+                  <div class="meter-scale" id="meter-scale"></div>
+                  <p id="meter-caption" class="muted"></p>
+                </div>
+              </div>
+              <div class="chart-wrap">
+                <svg id="chart-moisture" class="chart" role="img" aria-label="Évolution de l'humidité du sol"></svg>
+                <div class="tooltip" hidden></div>
+              </div>
+              <div class="legend">
+                <span><i class="key key-zone"></i>Zone idéale</span>
+                <span><i class="key key-pump"></i>Pompe en marche</span>
+              </div>
+            </section>
+
+            <div class="tiles o-tiles">
+              <section class="tile">
+                <p class="tile-label"><svg class="ico c-temp"><use href="#i-temp"/></svg>Température</p>
+                <p class="tile-value"><span id="v-temp">–</span><span class="unit">°C</span></p>
+                <p id="temp-note" class="muted"></p>
+              </section>
+              <section class="tile">
+                <p class="tile-label"><svg class="ico"><use href="#i-air"/></svg>Humidité de l'air</p>
+                <p class="tile-value"><span id="v-air">–</span><span class="unit">%</span></p>
+                <svg id="spark-air" class="spark" aria-hidden="true"></svg>
+              </section>
+              <section class="tile">
+                <p class="tile-label"><svg class="ico c-water"><use href="#i-pump"/></svg>Pompe</p>
+                <p class="tile-value small" id="v-pump">–</p>
+                <p id="pump-note" class="muted"></p>
+              </section>
+            </div>
+
+            <section class="card o-temp">
+              <div class="card-head">
+                <h2><svg class="ico c-temp"><use href="#i-temp"/></svg>Température</h2>
+              </div>
+              <div class="chart-wrap">
+                <svg id="chart-temp" class="chart" role="img" aria-label="Évolution de la température"></svg>
+                <div class="tooltip" hidden></div>
+              </div>
+            </section>
+
+            <details class="card table-view o-table">
+              <summary>Voir les dernières mesures en tableau</summary>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Heure</th><th class="num">Sol</th><th class="num">Température</th><th class="num">Air</th><th>Pompe</th></tr></thead>
+                  <tbody id="readings-table"></tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- Colonne latérale -->
+          <aside class="col-side">
+            <section class="card o-controls" id="controls" hidden>
+              <div class="card-head"><h2><svg class="ico c-water"><use href="#i-pump"/></svg>Arrosage manuel</h2></div>
+              <p class="field-label" id="duration-label">Durée</p>
+              <div class="chips" id="durations" role="radiogroup" aria-labelledby="duration-label">
+                <button type="button" class="chip" role="radio" data-duration="5">5 s</button>
+                <button type="button" class="chip" role="radio" data-duration="10">10 s</button>
+                <button type="button" class="chip" role="radio" data-duration="20">20 s</button>
+                <button type="button" class="chip" role="radio" data-duration="30">30 s</button>
+              </div>
+              <button type="button" class="btn primary block" data-command="pump_on"><svg><use href="#i-drop"/></svg>Arroser maintenant</button>
+              <div class="btn-row">
+                <button type="button" class="btn" data-command="pump_off">Arrêter</button>
+                <button type="button" class="btn" data-command="reset_fault">Sortir du mode sécurité</button>
+              </div>
+              <p id="command-feedback" class="feedback" role="status"></p>
+              <p class="muted fine">Le bac garde le dernier mot : il refuse d'arroser si le réservoir est vide ou s'il est en mode sécurité.</p>
+            </section>
+
+            <section class="card o-alerts">
+              <div class="card-head"><h2>Alertes en cours</h2><span id="alert-count" class="count"></span></div>
+              <ul id="alerts" class="alerts"></ul>
+            </section>
+
+            <section class="card o-activity">
+              <div class="card-head"><h2>Activité récente</h2></div>
+              <ol id="activity" class="timeline"></ol>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer"><span id="refresh-dot" class="live-dot"></span><span id="refresh-note"></span></footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
