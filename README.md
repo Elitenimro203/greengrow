@@ -71,7 +71,8 @@ uvicorn backend.main:app --reload
 python simulator/sensor_simulator.py
 ```
 
-- API : http://localhost:8000 — documentation interactive : http://localhost:8000/docs
+- Tableau de bord : http://localhost:8000 (connecte-toi avec ton compte)
+- Documentation interactive de l'API : http://localhost:8000/docs
 - Toute l'API exige d'être connecté : dans `/docs`, commence par `POST /api/auth/login`.
 - Le simulateur enregistre son bac (`bac-sim-01`) au premier lancement (il te demande
   alors ton e-mail et ton mot de passe), publie une mesure toutes les 5 secondes et
@@ -80,7 +81,8 @@ python simulator/sensor_simulator.py
 
 Explications détaillées : `docs/etape-1-backend.md`, `docs/etape-2-mqtt.md`,
 `docs/etape-3-firmware.md` (firmware ESP32 et simulation Wokwi),
-`docs/etape-4a-connexion-commandes.md` (comptes, sessions, commandes de pompe).
+`docs/etape-4a-connexion-commandes.md` (comptes, sessions, commandes de pompe),
+`docs/etape-4b-dashboard.md` (tableau de bord web, alertes Telegram).
 
 ---
 

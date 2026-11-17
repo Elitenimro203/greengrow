@@ -79,19 +79,46 @@ def get_credentials() -> dict:
     return creds
 
 
-def generate_measurement(pump_active: bool = False) -> dict:
+class SimulatedBac:
     """
-    Une mesure réaliste pour une tomate. Remarque : il n'y a PAS de bac_id
-    dans le message. Le serveur sait qui parle grâce au topic.
+    Un petit modèle de bac, pour que les courbes ressemblent à la réalité :
+    le sol sèche lentement, remonte quand la pompe tourne, et le bac arrose
+    tout seul quand le sol devient trop sec (comme le firmware).
     """
-    return {
-        "timestamp": time.time(),
-        "moisture_percent": round(random.uniform(35.0, 75.0), 1),
-        "temperature_celsius": round(random.uniform(24.0, 32.0), 1),
-        "humidity_air_percent": round(random.uniform(55.0, 85.0), 1),
-        "pump_active": pump_active,
-        "source": "simulator",
-    }
+
+    DRYING_PER_SECOND = 0.07   # le sol perd ~4 points par minute (accéléré pour la démo)
+    WATERING_PER_SECOND = 1.6  # la pompe en rend ~1,6 par seconde
+    AUTO_START_BELOW = 43.0
+    AUTO_STOP_ABOVE = 68.0
+
+    def __init__(self) -> None:
+        self.moisture = random.uniform(55.0, 65.0)
+        self.temperature = random.uniform(27.0, 29.0)
+        self.air = random.uniform(65.0, 75.0)
+        self.last = time.time()
+
+    def step(self, pump_active: bool) -> None:
+        now = time.time()
+        elapsed, self.last = now - self.last, now
+        rate = self.WATERING_PER_SECOND if pump_active else -self.DRYING_PER_SECOND
+        self.moisture = min(95.0, max(5.0, self.moisture + rate * elapsed + random.uniform(-0.2, 0.2)))
+        # Température et air : une dérive lente, pas des sauts au hasard.
+        self.temperature = min(34.0, max(23.0, self.temperature + random.uniform(-0.15, 0.15)))
+        self.air = min(90.0, max(50.0, self.air + random.uniform(-0.6, 0.6)))
+
+    def measurement(self, pump_active: bool) -> dict:
+        """
+        Remarque : il n'y a PAS de bac_id dans le message. Le serveur sait
+        qui parle grâce au topic.
+        """
+        return {
+            "timestamp": time.time(),
+            "moisture_percent": round(self.moisture, 1),
+            "temperature_celsius": round(self.temperature, 1),
+            "humidity_air_percent": round(self.air, 1),
+            "pump_active": pump_active,
+            "source": "simulator",
+        }
 
 
 class SimulatedPump:
@@ -109,6 +136,12 @@ class SimulatedPump:
     @property
     def active(self) -> bool:
         return time.time() < self.stop_at
+
+    def start(self, seconds: float) -> None:
+        self.stop_at = time.time() + min(seconds, self.MAX_WATERING_S)
+
+    def stop(self) -> None:
+        self.stop_at = 0.0
 
     def handle(self, command: dict) -> dict | None:
         """Traite une commande et retourne l'accusé de réception à publier."""
@@ -132,9 +165,9 @@ class SimulatedPump:
             duration = command.get("duration_s", 10)
             if not isinstance(duration, (int, float)) or duration <= 0:
                 duration = 10
-            self.stop_at = time.time() + min(duration, self.MAX_WATERING_S)
+            self.start(duration)
         elif kind == "pump_off":
-            self.stop_at = 0.0
+            self.stop()
         elif kind != "reset_fault":
             return ack | {"result": "rejected", "reason": "unknown_type"}
         return ack | {"result": "executed"}
@@ -162,6 +195,12 @@ def main() -> None:
         c.subscribe(f"{prefix}/cmd", qos=1)
 
     pump = SimulatedPump()
+    bac = SimulatedBac()
+
+    def publish_event(kind: str) -> None:
+        event = {"type": kind, "timestamp": int(time.time()), "moisture_percent": round(bac.moisture, 1)}
+        client.publish(f"{prefix}/event", json.dumps(event), qos=1)
+        print(f"📣 événement : {kind}")
 
     def on_message(c, userdata, message):
         try:
@@ -174,6 +213,10 @@ def main() -> None:
         if ack is not None:
             c.publish(f"{prefix}/event", json.dumps(ack), qos=1)
             print(f"🎛️  commande {command.get('type')} -> {ack['result']} {ack.get('reason', '')}")
+            if ack["result"] == "executed" and command.get("type") == "pump_on":
+                publish_event("watering_started")
+            elif ack["result"] == "executed" and command.get("type") == "pump_off":
+                publish_event("watering_stopped_manual")
 
     client.on_connect = on_connect
     client.on_message = on_message
@@ -187,7 +230,17 @@ def main() -> None:
     try:
         while True:
             time.sleep(INTERVAL_SECONDS)
-            measurement = generate_measurement(pump.active)
+            was_active = pump.active
+            bac.step(was_active)
+            # Arrosage automatique, comme le firmware : trop sec -> la pompe
+            # démarre ; assez humide -> elle s'arrête.
+            if not was_active and bac.moisture < bac.AUTO_START_BELOW:
+                pump.start(pump.MAX_WATERING_S)
+                publish_event("watering_started")
+            elif was_active and bac.moisture > bac.AUTO_STOP_ABOVE:
+                pump.stop()
+                publish_event("watering_stopped_target")
+            measurement = bac.measurement(pump.active)
             info = client.publish(f"{prefix}/telemetry", json.dumps(measurement), qos=1)
             state = "✅ publié" if info.rc == mqtt.MQTT_ERR_SUCCESS else "⚠️  en attente (déconnecté)"
             print(f"[{time.strftime('%H:%M:%S')}] {state} | {measurement}")
