@@ -7,12 +7,15 @@ Lancement : uvicorn backend.main:app --reload
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.alerts import router as alerts_router
+from backend.api.auth import router as auth_router
 from backend.api.bacs import router as bacs_router
+from backend.api.commands import router as commands_router
 from backend.api.readings import router as readings_router
+from backend.api.security import check_origin, current_user
 from backend.config import get_settings
 from backend.mqtt import dynsec
 from backend.mqtt.ingestion import MqttIngestion
@@ -43,7 +46,7 @@ app = FastAPI(
     lifespan=lifespan,
     title="GreenGrow API",
     description="API de gestion des bacs de culture intelligents",
-    version="0.4.0",
+    version="0.5.0",
 )
 
 # CORS : quels sites web ont le droit d'appeler l'API depuis un navigateur.
@@ -53,12 +56,19 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_methods=["GET", "POST", "PATCH"],
-    allow_headers=["Content-Type", "X-Admin-Key"],
+    allow_headers=["Content-Type"],
 )
 
-app.include_router(bacs_router, prefix="/api")
-app.include_router(readings_router, prefix="/api")
-app.include_router(alerts_router, prefix="/api")
+# La connexion elle-même est la seule route d'API ouverte sans session.
+app.include_router(auth_router, prefix="/api", dependencies=[Depends(check_origin)])
+
+# TOUT le reste exige d'être connecté. La règle est posée ici, une fois, pour
+# tous les routeurs : une nouvelle route est protégée sans qu'on ait à y
+# penser ("fermé par défaut"). Ces vérifications passent AVANT le reste : un
+# inconnu reçoit 401 et n'apprend même pas si un bac existe.
+protected = [Depends(check_origin), Depends(current_user)]
+for router in (bacs_router, readings_router, alerts_router, commands_router):
+    app.include_router(router, prefix="/api", dependencies=protected)
 
 
 @app.get("/")

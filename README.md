@@ -45,14 +45,17 @@ pip install -r requirements.txt
 
 # 4. Configurer les secrets
 cp .env.example .env
-# Ouvre .env et remplis ADMIN_API_KEY, MQTT_ADMIN_PASSWORD et MQTT_BACKEND_PASSWORD
-# (trois valeurs longues et différentes ; la commande pour en générer est dans le fichier)
+# Ouvre .env et remplis MQTT_ADMIN_PASSWORD et MQTT_BACKEND_PASSWORD
+# (deux valeurs longues et différentes)
 
 # 5. Créer les certificats TLS de développement (une seule fois)
 python scripts/make_dev_certs.py
 
 # 6. Créer la base de données
 alembic upgrade head
+
+# 7. Créer ton compte (le mot de passe est demandé au clavier, 10 caractères minimum)
+python scripts/create_user.py --email toi@exemple.com --nom "Ton nom" --role owner
 ```
 
 ## Lancement au quotidien
@@ -69,12 +72,15 @@ python simulator/sensor_simulator.py
 ```
 
 - API : http://localhost:8000 — documentation interactive : http://localhost:8000/docs
-- Le simulateur enregistre son bac (`bac-sim-01`) au premier lancement, reçoit ses
-  identifiants MQTT et publie une mesure toutes les 5 secondes.
+- Toute l'API exige d'être connecté : dans `/docs`, commence par `POST /api/auth/login`.
+- Le simulateur enregistre son bac (`bac-sim-01`) au premier lancement (il te demande
+  alors ton e-mail et ton mot de passe), publie une mesure toutes les 5 secondes et
+  répond aux commandes de pompe.
 - Journal du broker : `docker compose logs -f mosquitto`
 
 Explications détaillées : `docs/etape-1-backend.md`, `docs/etape-2-mqtt.md`,
-`docs/etape-3-firmware.md` (firmware ESP32 et simulation Wokwi).
+`docs/etape-3-firmware.md` (firmware ESP32 et simulation Wokwi),
+`docs/etape-4a-connexion-commandes.md` (comptes, sessions, commandes de pompe).
 
 ---
 

@@ -36,11 +36,20 @@ class Settings(BaseSettings):
     moisture_threshold_high: float = 80.0
     temp_max_celsius: float = 35.0
 
-    # --- Sécurité de l'API ---
-    # Clé exigée (en-tête X-Admin-Key) pour les actions sensibles : enregistrer
-    # un bac, renouveler ses identifiants. Vide = ces actions sont désactivées.
-    # Elle sera remplacée par un vrai login à l'étape 4.
-    admin_api_key: str = ""
+    # --- Connexion des utilisateurs ---
+    # Durée de vie d'une connexion. Passé ce délai, il faut se reconnecter.
+    session_hours: int = 168  # 7 jours
+    # Anti-devinette : au-delà de ce nombre de mots de passe faux dans la
+    # fenêtre, les tentatives sont refusées (par compte, et par adresse IP).
+    login_max_failures: int = 5
+    login_max_failures_per_ip: int = 20
+    login_window_minutes: int = 15
+
+    # --- Commandes envoyées aux bacs ---
+    # Une commande non exécutée après ce délai est ignorée par le bac.
+    command_lifetime_seconds: int = 30
+    # Nombre maximum de commandes par bac et par minute.
+    command_max_per_minute: int = 6
 
     # --- MQTT ---
     # false = l'API fonctionne sans broker (tests, premiers pas).
@@ -57,6 +66,10 @@ class Settings(BaseSettings):
     # Compte du backend : lit les mesures, enverra les commandes. Rien d'autre.
     mqtt_backend_user: str = "greengrow-backend"
     mqtt_backend_password: str = ""
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() == "production"
 
     @property
     def cors_origin_list(self) -> list[str]:

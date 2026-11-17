@@ -79,6 +79,11 @@ def handle_message(db: Session, raw_topic: str, payload: bytes) -> str:
         details = {k: v for k, v in (event.model_extra or {}).items() if _is_simple(v)}
         db.add(BacEvent(bac_id=bac.id, type=event.type, occurred_at=when, details=details))
         alerts.on_device_event(db, bac, event.type, when)
+        if event.type == "cmd_ack":
+            # Import ici : commands.py a lui-même besoin de ce module pour publier.
+            from backend.services import commands
+
+            commands.on_ack(db, bac, details)
         bac.last_seen_at = utcnow()
         db.commit()
         return "event"
@@ -109,6 +114,20 @@ def publish_config(bac: Bac) -> bool:
         return False
     _running.publish(topics.topic(bac.site.slug, bac.slug, "config"), config_payload(bac), retain=True)
     return True
+
+
+def is_running() -> bool:
+    return _running is not None
+
+
+def publish_command(bac: Bac, payload: str) -> None:
+    """
+    Envoie une commande à un bac. PAS retenue par le broker : une commande
+    n'a de sens que maintenant, un bac qui se connecte demain ne doit pas la
+    recevoir.
+    """
+    if _running is not None:
+        _running.publish(topics.topic(bac.site.slug, bac.slug, "cmd"), payload, retain=False)
 
 
 class MqttIngestion:

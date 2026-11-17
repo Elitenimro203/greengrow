@@ -7,10 +7,10 @@ jamais ta vraie base et ne dépendent pas les uns des autres.
 
 import os
 
-# Réglages des tests, posés AVANT d'importer l'application : une clé admin
-# connue et pas de broker (les tests ne dépendent d'aucun service extérieur).
-os.environ["ADMIN_API_KEY"] = "cle-de-test"
+# Réglages des tests, posés AVANT d'importer l'application : pas de broker
+# (les tests ne dépendent d'aucun service extérieur).
 os.environ["MQTT_ENABLED"] = "false"
+os.environ["APP_ENV"] = "development"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -21,9 +21,10 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from backend.main import app  # noqa: E402
 from backend.models import entities  # noqa: E402,F401  (déclare les tables)
 from backend.models.database import Base, get_db  # noqa: E402
+from backend.services import auth  # noqa: E402
 
-
-ADMIN = {"X-Admin-Key": "cle-de-test"}
+OWNER = {"email": "proprio@greengrow.test", "password": "tomate-cerise-42"}
+VIEWER = {"email": "visiteur@greengrow.test", "password": "basilic-citron-42"}
 
 
 @pytest.fixture
@@ -46,7 +47,9 @@ def db(db_session_factory):
 
 
 @pytest.fixture
-def client(db_session_factory):
+def anonymous(db_session_factory):
+    """Un client qui n'est PAS connecté. Les deux comptes de test existent."""
+
     def override_get_db():
         db = db_session_factory()
         try:
@@ -54,11 +57,33 @@ def client(db_session_factory):
         finally:
             db.close()
 
+    db = db_session_factory()
+    auth.create_user(db, OWNER["email"], "Propriétaire", OWNER["password"], "owner")
+    auth.create_user(db, VIEWER["email"], "Visiteur", VIEWER["password"], "viewer")
+    db.close()
+
     # On remplace la vraie base par la base de test, le temps du test.
     app.dependency_overrides[get_db] = override_get_db
-    # Par défaut, le client de test envoie la clé d'administration.
-    yield TestClient(app, headers=ADMIN)
+    yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+def login(client, who=OWNER):
+    r = client.post("/api/auth/login", json=who)
+    assert r.status_code == 200, r.text
+    return client
+
+
+@pytest.fixture
+def client(anonymous):
+    """Par défaut, le client de test est connecté comme propriétaire."""
+    return login(anonymous)
+
+
+@pytest.fixture
+def viewer(client):
+    """Un second navigateur, connecté avec le compte en lecture seule."""
+    return login(TestClient(app), VIEWER)
 
 
 @pytest.fixture

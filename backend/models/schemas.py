@@ -7,7 +7,7 @@ de la base en entrée, ni exposer par accident une colonne interne en sortie.
 """
 
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
@@ -138,3 +138,51 @@ class AlertOut(BaseModel):
     opened_at: UtcDatetime
     resolved_at: Optional[UtcDatetime]
     last_value: float
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserOut(BaseModel):
+    """Ce qu'on montre d'un utilisateur : jamais l'empreinte du mot de passe."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    email: str
+    nom: str
+    role: str
+
+
+class CommandCreate(BaseModel):
+    """Une commande à envoyer à un bac."""
+
+    type: Literal["pump_on", "pump_off", "reset_fault"]
+    # Durée d'arrosage pour pump_on. Le bac applique en plus SA propre limite
+    # (max_watering_s) : le serveur ne peut pas la dépasser.
+    duration_s: int = Field(default=10, ge=1, le=120)
+
+
+class CommandOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: str
+    params: dict
+    status: str
+    reason: Optional[str]
+    created_at: UtcDatetime
+    expires_at: UtcDatetime
+    answered_at: Optional[UtcDatetime]
+
+
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    at: UtcDatetime
+    actor: str
+    action: str
+    target: Optional[str]
+    ip: Optional[str]
+    details: dict

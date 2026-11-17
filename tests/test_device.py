@@ -78,9 +78,10 @@ def test_les_seuils_que_le_firmware_refuserait_sont_refuses_par_l_api(client, ba
     assert client.get("/api/bacs").json()[0]["moisture_low"] == 45.0
 
 
-def test_modifier_un_bac_exige_la_cle(client, bac):
-    r = client.patch("/api/bacs/bac01", json={"moisture_low": 50}, headers={"X-Admin-Key": "x"})
-    assert r.status_code == 401
+def test_modifier_un_bac_est_reserve_au_proprietaire(viewer, bac):
+    r = viewer.patch("/api/bacs/bac01", json={"moisture_low": 50})
+    assert r.status_code == 403
+    assert viewer.get("/api/bacs").json()[0]["moisture_low"] == 45
 
 
 def test_les_nouveaux_seuils_sont_envoyes_au_bac(client, bac, monkeypatch):

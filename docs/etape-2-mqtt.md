@@ -94,6 +94,9 @@ déclare sur lui-même ; s'appuyer sur ce que le système a vérifié.
 
 ## 5. Une clé pour les actions sensibles
 
+> **Depuis l'étape 4a**, cette clé n'existe plus : elle est remplacée par une
+> vraie connexion (voir `docs/etape-4a-connexion-commandes.md`).
+
 Enregistrer un bac donne maintenant des identifiants MQTT. Cette route ne
 peut donc plus être ouverte à tous : elle exige l'en-tête `X-Admin-Key`
 (valeur `ADMIN_API_KEY` du fichier `.env`). Pareil pour l'injection manuelle
